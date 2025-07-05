@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { TimerDisplay } from './TimerDisplay';
 import { TimerControls } from './TimerControls';
 import { TimerSettings } from './TimerSettings';
+import { ExerciseManager } from './ExerciseManager';
 import { PresetManager } from './PresetManager';
 import { useToast } from '@/hooks/use-toast';
 
@@ -17,6 +18,7 @@ export interface TimerSettings {
 
 export interface TimerPreset extends TimerSettings {
   name: string;
+  exercises?: string[];
 }
 
 export const IntervalTimer = () => {
@@ -28,6 +30,10 @@ export const IntervalTimer = () => {
     restDuration: 10,
     rounds: 5
   });
+  
+  // Exercise management
+  const [exercises, setExercises] = useState<string[]>([]);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   
   // Timer state
   const [state, setState] = useState<TimerState>('idle');
@@ -94,14 +100,25 @@ export const IntervalTimer = () => {
       });
     } else if (phase === 'rest') {
       if (currentRound < settings.rounds) {
+        // Move to next exercise if available
+        if (exercises.length > 0) {
+          setCurrentExerciseIndex(prev => (prev + 1) % exercises.length);
+        }
+        
         setCurrentRound(prev => prev + 1);
         setPhase('work');
         setTimeLeft(settings.workDuration);
         playBeep(800, 300);
-        speak(`Round ${currentRound + 1}, work time`);
+        
+        const nextExercise = exercises.length > 0 ? exercises[(currentExerciseIndex + 1) % exercises.length] : '';
+        const speakText = nextExercise 
+          ? `Round ${currentRound + 1}, ${nextExercise}` 
+          : `Round ${currentRound + 1}, work time`;
+        speak(speakText);
+        
         toast({
           title: '🔥 Next Round!',
-          description: `Round ${currentRound + 1} - Work for ${settings.workDuration} seconds`,
+          description: `Round ${currentRound + 1}${nextExercise ? ` - ${nextExercise}` : ` - Work for ${settings.workDuration} seconds`}`,
         });
       } else {
         setPhase('finished');
@@ -114,7 +131,7 @@ export const IntervalTimer = () => {
         });
       }
     }
-  }, [phase, currentRound, settings, playBeep, speak, toast]);
+  }, [phase, currentRound, settings, exercises, currentExerciseIndex, playBeep, speak, toast]);
   
   // Timer tick effect
   useEffect(() => {
@@ -154,6 +171,7 @@ export const IntervalTimer = () => {
       setTimeLeft(settings.workDuration);
       setPhase('work');
       setCurrentRound(1);
+      setCurrentExerciseIndex(0);
     }
   }, [settings, state]);
   
@@ -161,7 +179,11 @@ export const IntervalTimer = () => {
   const startTimer = () => {
     setState('running');
     if (phase === 'work') {
-      speak(`Round ${currentRound}, work time`);
+      const currentExercise = exercises.length > 0 ? exercises[currentExerciseIndex] : '';
+      const speakText = currentExercise 
+        ? `Round ${currentRound}, ${currentExercise}` 
+        : `Round ${currentRound}, work time`;
+      speak(speakText);
     } else {
       speak('Rest time');
     }
@@ -175,6 +197,7 @@ export const IntervalTimer = () => {
     setState('idle');
     setPhase('work');
     setCurrentRound(1);
+    setCurrentExerciseIndex(0);
     setTimeLeft(settings.workDuration);
   };
   
@@ -196,6 +219,7 @@ export const IntervalTimer = () => {
             currentRound={currentRound}
             totalRounds={settings.rounds}
             totalProgress={totalProgress}
+            currentExercise={exercises.length > 0 ? exercises[currentExerciseIndex] : ''}
           />
           
           <TimerControls
@@ -215,9 +239,26 @@ export const IntervalTimer = () => {
         </Card>
         
         <Card className="p-6 bg-card/80 backdrop-blur-sm border-border/50">
+          <ExerciseManager
+            exercises={exercises}
+            onChange={setExercises}
+            disabled={state !== 'idle'}
+          />
+        </Card>
+        
+        <Card className="p-6 bg-card/80 backdrop-blur-sm border-border/50">
           <PresetManager
             currentSettings={settings}
-            onLoadPreset={setSettings}
+            currentExercises={exercises}
+            onLoadPreset={(preset) => {
+              setSettings({
+                workDuration: preset.workDuration,
+                restDuration: preset.restDuration,
+                rounds: preset.rounds
+              });
+              setExercises(preset.exercises || []);
+              setCurrentExerciseIndex(0);
+            }}
             disabled={state !== 'idle'}
           />
         </Card>

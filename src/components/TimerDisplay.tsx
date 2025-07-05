@@ -10,6 +10,7 @@ interface TimerDisplayProps {
   currentRound: number;
   totalRounds: number;
   totalProgress: number;
+  currentExercise?: string;
 }
 
 export const TimerDisplay = ({
@@ -19,7 +20,8 @@ export const TimerDisplay = ({
   progress,
   currentRound,
   totalRounds,
-  totalProgress
+  totalProgress,
+  currentExercise
 }: TimerDisplayProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -122,6 +124,13 @@ export const TimerDisplay = ({
         <div className="text-2xl font-bold text-foreground">
           Round {currentRound} of {totalRounds}
         </div>
+        
+        {/* Current exercise */}
+        {currentExercise && phase === 'work' && (
+          <div className="text-lg font-semibold text-primary bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
+            {currentExercise}
+          </div>
+        )}
         
         {/* Overall progress */}
         <div className="space-y-2">

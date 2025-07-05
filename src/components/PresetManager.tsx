@@ -9,20 +9,22 @@ import { useToast } from '@/hooks/use-toast';
 
 interface PresetManagerProps {
   currentSettings: TimerSettings;
-  onLoadPreset: (settings: TimerSettings) => void;
+  currentExercises: string[];
+  onLoadPreset: (preset: TimerPreset) => void;
   disabled: boolean;
 }
 
 const DEFAULT_PRESETS: TimerPreset[] = [
-  { name: 'Quick HIIT', workDuration: 20, restDuration: 10, rounds: 8 },
-  { name: 'Tabata Classic', workDuration: 20, restDuration: 10, rounds: 8 },
-  { name: 'Strength Training', workDuration: 45, restDuration: 15, rounds: 6 },
-  { name: 'Cardio Burst', workDuration: 30, restDuration: 15, rounds: 12 },
-  { name: 'Beginner Friendly', workDuration: 30, restDuration: 30, rounds: 5 }
+  { name: 'Quick HIIT', workDuration: 20, restDuration: 10, rounds: 8, exercises: ['Jumping Jacks', 'Push-ups', 'Squats', 'Burpees'] },
+  { name: 'Tabata Classic', workDuration: 20, restDuration: 10, rounds: 8, exercises: ['High Knees', 'Mountain Climbers', 'Plank', 'Lunges'] },
+  { name: 'Strength Training', workDuration: 45, restDuration: 15, rounds: 6, exercises: ['Deadlifts', 'Bench Press', 'Squats', 'Pull-ups', 'Rows', 'Overhead Press'] },
+  { name: 'Cardio Burst', workDuration: 30, restDuration: 15, rounds: 12, exercises: ['Jump Rope', 'Running in Place', 'Jumping Jacks', 'High Knees'] },
+  { name: 'Beginner Friendly', workDuration: 30, restDuration: 30, rounds: 5, exercises: ['Walking in Place', 'Arm Circles', 'Bodyweight Squats', 'Wall Push-ups', 'Stretching'] }
 ];
 
 export const PresetManager = ({
   currentSettings,
+  currentExercises,
   onLoadPreset,
   disabled
 }: PresetManagerProps) => {
@@ -30,6 +32,7 @@ export const PresetManager = ({
   const [presets, setPresets] = useState<TimerPreset[]>([]);
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [newExercise, setNewExercise] = useState('');
 
   // Load presets from localStorage on mount
   useEffect(() => {
@@ -66,7 +69,8 @@ export const PresetManager = ({
 
     const preset: TimerPreset = {
       name: newPresetName.trim(),
-      ...currentSettings
+      ...currentSettings,
+      exercises: currentExercises.length > 0 ? [...currentExercises] : undefined
     };
 
     const updatedPresets = [...presets.filter(p => p.name !== preset.name), preset];
@@ -83,11 +87,7 @@ export const PresetManager = ({
   const loadPreset = (presetName: string) => {
     const preset = presets.find(p => p.name === presetName);
     if (preset) {
-      onLoadPreset({
-        workDuration: preset.workDuration,
-        restDuration: preset.restDuration,
-        rounds: preset.rounds
-      });
+      onLoadPreset(preset);
       
       toast({
         title: 'Preset Loaded',
@@ -118,7 +118,18 @@ export const PresetManager = ({
   };
 
   const formatPresetDescription = (preset: TimerPreset) => {
-    return `${preset.workDuration}s work, ${preset.restDuration}s rest, ${preset.rounds} rounds`;
+    const exerciseText = preset.exercises?.length ? ` - ${preset.exercises.length} exercises` : '';
+    return `${preset.workDuration}s work, ${preset.restDuration}s rest, ${preset.rounds} rounds${exerciseText}`;
+  };
+
+  const addExercise = () => {
+    if (!newExercise.trim()) return;
+    // This would need to be managed at the parent level
+    setNewExercise('');
+  };
+
+  const removeExercise = (index: number) => {
+    // This would need to be managed at the parent level
   };
 
   return (
