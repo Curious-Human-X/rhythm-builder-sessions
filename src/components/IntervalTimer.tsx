@@ -100,17 +100,20 @@ export const IntervalTimer = () => {
       });
     } else if (phase === 'rest') {
       if (currentRound < settings.rounds) {
-        // Move to next exercise if available
-        if (exercises.length > 0) {
-          setCurrentExerciseIndex(prev => (prev + 1) % exercises.length);
-        }
-        
         setCurrentRound(prev => prev + 1);
         setPhase('work');
         setTimeLeft(settings.workDuration);
+        
+        // Move to next exercise if available (before announcing)
+        let nextExerciseIndex = currentExerciseIndex;
+        if (exercises.length > 0) {
+          nextExerciseIndex = (currentExerciseIndex + 1) % exercises.length;
+          setCurrentExerciseIndex(nextExerciseIndex);
+        }
+        
         playBeep(800, 300);
         
-        const nextExercise = exercises.length > 0 ? exercises[(currentExerciseIndex + 1) % exercises.length] : '';
+        const nextExercise = exercises.length > 0 ? exercises[nextExerciseIndex] : '';
         const speakText = nextExercise 
           ? `Round ${currentRound + 1}, ${nextExercise}` 
           : `Round ${currentRound + 1}, work time`;
