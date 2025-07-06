@@ -144,21 +144,24 @@ export const IntervalTimer = () => {
   
   // Timer tick effect
   useEffect(() => {
-    if (state === 'running') {
+    if (state === 'running' && timeLeft > 0) {
       intervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           console.log('Timer tick:', { prev, phase, state });
-          if (prev <= 1) {
-            transitionPhase();
-            return 0;
-          }
+          const newTime = prev - 1;
           
           // Countdown beeps for last 3 seconds
-          if (prev <= 3) {
+          if (newTime <= 3 && newTime > 0) {
             playBeep(1200, 100);
           }
           
-          return prev - 1;
+          // When time reaches 0, trigger phase transition
+          if (newTime <= 0) {
+            setTimeout(() => transitionPhase(), 10);
+            return 0;
+          }
+          
+          return newTime;
         });
       }, 1000);
     } else {
@@ -173,7 +176,7 @@ export const IntervalTimer = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [state, transitionPhase, playBeep]);
+  }, [state, timeLeft, transitionPhase, playBeep]);
   
   // Reset timer when settings change and timer is idle
   useEffect(() => {
