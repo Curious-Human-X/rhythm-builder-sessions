@@ -3,9 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Save, Download } from 'lucide-react';
-import { TimerSettings, TimerPreset } from './IntervalTimer';
+import { Separator } from '@/components/ui/separator';
+import { Save, Trash2, Download } from 'lucide-react';
+import { TimerPreset, TimerSettings } from './IntervalTimer';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PresetManagerProps {
   currentSettings: TimerSettings;
@@ -22,194 +25,274 @@ const DEFAULT_PRESETS: TimerPreset[] = [
   { name: 'Beginner Friendly', workDuration: 30, restDuration: 30, rounds: 5, exercises: ['Walking in Place', 'Arm Circles', 'Bodyweight Squats', 'Wall Push-ups', 'Stretching'] }
 ];
 
-export const PresetManager = ({
-  currentSettings,
-  currentExercises,
-  onLoadPreset,
-  disabled
-}: PresetManagerProps) => {
+export const PresetManager = ({ currentSettings, currentExercises, onLoadPreset, disabled }: PresetManagerProps) => {
   const { toast } = useToast();
-  const [presets, setPresets] = useState<TimerPreset[]>([]);
-  const [newPresetName, setNewPresetName] = useState('');
+  const { user } = useAuth();
+  const [presetName, setPresetName] = useState('');
+  const [userPresets, setUserPresets] = useState<TimerPreset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
-  const [newExercise, setNewExercise] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Load presets from localStorage on mount
+  // Load user presets from database
   useEffect(() => {
-    const savedPresets = localStorage.getItem('interval-timer-presets');
-    if (savedPresets) {
-      try {
-        const parsed = JSON.parse(savedPresets);
-        setPresets([...DEFAULT_PRESETS, ...parsed]);
-      } catch {
-        setPresets(DEFAULT_PRESETS);
-      }
-    } else {
-      setPresets(DEFAULT_PRESETS);
+    if (user) {
+      loadPresets();
     }
-  }, []);
+  }, [user]);
 
-  // Save presets to localStorage
-  const savePresetsToStorage = (newPresets: TimerPreset[]) => {
-    const customPresets = newPresets.filter(p => 
-      !DEFAULT_PRESETS.some(dp => dp.name === p.name)
-    );
-    localStorage.setItem('interval-timer-presets', JSON.stringify(customPresets));
+  const loadPresets = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_presets')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const presets: TimerPreset[] = data?.map(preset => ({
+        name: preset.name,
+        workDuration: preset.work_duration,
+        restDuration: preset.rest_duration,
+        rounds: preset.rounds,
+        exercises: preset.exercises as string[] || []
+      })) || [];
+
+      setUserPresets(presets);
+    } catch (error) {
+      console.error('Error loading presets:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load your saved presets.'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const saveCurrentAsPreset = () => {
-    if (!newPresetName.trim()) {
+  const savePreset = async () => {
+    if (!user || !presetName.trim()) {
       toast({
+        variant: 'destructive',
         title: 'Error',
-        description: 'Please enter a preset name',
-        variant: 'destructive'
+        description: !user ? 'Please sign in to save presets.' : 'Please enter a preset name.'
       });
       return;
     }
 
-    const preset: TimerPreset = {
-      name: newPresetName.trim(),
-      ...currentSettings,
-      exercises: currentExercises.length > 0 ? [...currentExercises] : undefined
-    };
+    setLoading(true);
+    try {
+      // Check if preset name already exists
+      const { data: existingPreset } = await supabase
+        .from('user_presets')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('name', presetName.trim())
+        .single();
 
-    const updatedPresets = [...presets.filter(p => p.name !== preset.name), preset];
-    setPresets(updatedPresets);
-    savePresetsToStorage(updatedPresets);
-    setNewPresetName('');
-    
-    toast({
-      title: 'Preset Saved',
-      description: `"${preset.name}" has been saved successfully`
-    });
+      const presetData = {
+        user_id: user.id,
+        name: presetName.trim(),
+        work_duration: currentSettings.workDuration,
+        rest_duration: currentSettings.restDuration,
+        rounds: currentSettings.rounds,
+        exercises: currentExercises
+      };
+
+      if (existingPreset) {
+        // Update existing preset
+        const { error } = await supabase
+          .from('user_presets')
+          .update(presetData)
+          .eq('id', existingPreset.id);
+
+        if (error) throw error;
+
+        toast({
+          title: '✅ Preset Updated',
+          description: `"${presetName.trim()}" has been updated.`
+        });
+      } else {
+        // Create new preset
+        const { error } = await supabase
+          .from('user_presets')
+          .insert([presetData]);
+
+        if (error) throw error;
+
+        toast({
+          title: '💾 Preset Saved',
+          description: `"${presetName.trim()}" has been saved.`
+        });
+      }
+
+      setPresetName('');
+      await loadPresets(); // Reload presets
+    } catch (error) {
+      console.error('Error saving preset:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to save preset. Please try again.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deletePreset = async (presetName: string) => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('user_presets')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('name', presetName);
+
+      if (error) throw error;
+
+      // Clear selection if deleted preset was selected
+      if (selectedPreset === presetName) {
+        setSelectedPreset('');
+      }
+      
+      toast({
+        title: '🗑️ Preset Deleted',
+        description: `"${presetName}" has been deleted.`
+      });
+
+      await loadPresets(); // Reload presets
+    } catch (error) {
+      console.error('Error deleting preset:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete preset. Please try again.'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadPreset = (presetName: string) => {
-    const preset = presets.find(p => p.name === presetName);
+    // Check both default and user presets
+    const allPresets = [...DEFAULT_PRESETS, ...userPresets];
+    const preset = allPresets.find(p => p.name === presetName);
+    
     if (preset) {
       onLoadPreset(preset);
-      
       toast({
-        title: 'Preset Loaded',
-        description: `"${preset.name}" settings have been applied`
+        title: '📥 Preset Loaded',
+        description: `"${preset.name}" settings have been applied.`
       });
     }
   };
 
-  const deletePreset = (presetName: string) => {
-    if (DEFAULT_PRESETS.some(p => p.name === presetName)) {
-      toast({
-        title: 'Cannot Delete',
-        description: 'Default presets cannot be deleted',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    const updatedPresets = presets.filter(p => p.name !== presetName);
-    setPresets(updatedPresets);
-    savePresetsToStorage(updatedPresets);
-    setSelectedPreset('');
-    
-    toast({
-      title: 'Preset Deleted',
-      description: `"${presetName}" has been removed`
-    });
-  };
-
-  const formatPresetDescription = (preset: TimerPreset) => {
-    const exerciseText = preset.exercises?.length ? ` - ${preset.exercises.length} exercises` : '';
-    return `${preset.workDuration}s work, ${preset.restDuration}s rest, ${preset.rounds} rounds${exerciseText}`;
-  };
-
-  const addExercise = () => {
-    if (!newExercise.trim()) return;
-    // This would need to be managed at the parent level
-    setNewExercise('');
-  };
-
-  const removeExercise = (index: number) => {
-    // This would need to be managed at the parent level
-  };
+  const allPresets = [...DEFAULT_PRESETS, ...userPresets];
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Presets</h3>
+      <h3 className="text-lg font-semibold text-foreground">Presets</h3>
       
-      {/* Load preset */}
+      {/* Save current settings as preset */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Load Preset</Label>
-        <div className="flex gap-2">
-          <Select 
-            value={selectedPreset} 
-            onValueChange={setSelectedPreset}
-            disabled={disabled}
-          >
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Choose a preset..." />
-            </SelectTrigger>
-            <SelectContent>
-              {presets.map((preset) => (
-                <SelectItem key={preset.name} value={preset.name}>
-                  <div className="flex flex-col items-start">
-                    <span className="font-medium">{preset.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatPresetDescription(preset)}
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Button
-            size="sm"
-            onClick={() => loadPreset(selectedPreset)}
-            disabled={!selectedPreset || disabled}
-            className="px-3"
-          >
-            <Download className="w-4 h-4" />
-          </Button>
-          
-          {selectedPreset && !DEFAULT_PRESETS.some(p => p.name === selectedPreset) && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => deletePreset(selectedPreset)}
-              disabled={disabled}
-              className="px-3"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-      
-      {/* Save current settings */}
-      <div className="space-y-2">
-        <Label htmlFor="preset-name" className="text-sm font-medium">
-          Save Current Settings
-        </Label>
+        <Label htmlFor="preset-name" className="text-sm font-medium">Save Current Settings</Label>
         <div className="flex gap-2">
           <Input
             id="preset-name"
             placeholder="Enter preset name..."
-            value={newPresetName}
-            onChange={(e) => setNewPresetName(e.target.value)}
-            disabled={disabled}
-            className="flex-1"
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+            disabled={disabled || loading || !user}
           />
-          <Button
-            size="sm"
-            onClick={saveCurrentAsPreset}
-            disabled={!newPresetName.trim() || disabled}
-            className="px-3"
+          <Button 
+            onClick={savePreset}
+            disabled={disabled || loading || !user || !presetName.trim()}
+            className="flex items-center gap-2"
           >
-            <Save className="w-4 h-4" />
+            <Save className="h-4 w-4" />
+            {loading ? 'Saving...' : 'Save'}
           </Button>
         </div>
+        {!user && (
+          <p className="text-xs text-muted-foreground">Sign in to save custom presets</p>
+        )}
       </div>
-      
+
+      <Separator />
+
+      {/* Load saved presets */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Load Preset</Label>
+        <Select value={selectedPreset} onValueChange={setSelectedPreset} disabled={disabled || loading}>
+          <SelectTrigger>
+            <SelectValue placeholder={loading ? "Loading presets..." : allPresets.length === 0 ? "No presets available" : "Choose a preset"} />
+          </SelectTrigger>
+          <SelectContent>
+            {DEFAULT_PRESETS.map((preset) => (
+              <SelectItem key={`default-${preset.name}`} value={preset.name}>
+                <div className="flex flex-col items-start">
+                  <span className="font-medium">{preset.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {preset.workDuration}s work, {preset.restDuration}s rest, {preset.rounds} rounds
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+            {userPresets.length > 0 && (
+              <>
+                <SelectItem disabled value="user-presets-header">
+                  <span className="text-xs font-semibold text-muted-foreground">Your Custom Presets</span>
+                </SelectItem>
+                {userPresets.map((preset) => (
+                  <SelectItem key={`user-${preset.name}`} value={preset.name}>
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{preset.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {preset.workDuration}s work, {preset.restDuration}s rest, {preset.rounds} rounds
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+          </SelectContent>
+        </Select>
+
+        {selectedPreset && (
+          <div className="flex gap-2">
+            <Button
+              onClick={() => loadPreset(selectedPreset)}
+              disabled={disabled || loading}
+              className="flex items-center gap-2 flex-1"
+            >
+              <Download className="h-4 w-4" />
+              Load Preset
+            </Button>
+            
+            {/* Only show delete button for user presets */}
+            {userPresets.some(p => p.name === selectedPreset) && (
+              <Button 
+                onClick={() => deletePreset(selectedPreset)}
+                variant="destructive"
+                size="sm"
+                disabled={disabled || loading}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-3 w-3" />
+                {loading ? 'Deleting...' : 'Delete'}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
       {disabled && (
         <p className="text-sm text-muted-foreground">
           Presets can only be managed when timer is stopped

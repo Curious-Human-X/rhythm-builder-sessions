@@ -5,6 +5,7 @@ import { TimerControls } from './TimerControls';
 import { TimerSettings } from './TimerSettings';
 import { ExerciseManager } from './ExerciseManager';
 import { PresetManager } from './PresetManager';
+import { UserProfile } from './UserProfile';
 import { useToast } from '@/hooks/use-toast';
 
 export type TimerPhase = 'work' | 'rest' | 'finished';
@@ -223,6 +224,7 @@ export const IntervalTimer = () => {
   return (
     <div className="min-h-screen bg-[image:var(--gradient-bg)] flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
+        <UserProfile />
         <Card className="p-8 bg-card/80 backdrop-blur-sm border-border/50" style={{ boxShadow: 'var(--shadow-elevated)' }}>
           <TimerDisplay
             timeLeft={timeLeft}
