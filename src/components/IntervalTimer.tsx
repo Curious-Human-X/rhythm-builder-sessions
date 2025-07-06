@@ -89,7 +89,10 @@ export const IntervalTimer = () => {
   
   // Handle phase transition
   const transitionPhase = useCallback(() => {
+    console.log('Phase transition called:', { phase, currentRound, timeLeft });
+    
     if (phase === 'work') {
+      console.log('Transitioning from work to rest');
       setPhase('rest');
       setTimeLeft(settings.restDuration);
       playBeep(600, 300);
@@ -99,6 +102,7 @@ export const IntervalTimer = () => {
         description: `Rest for ${settings.restDuration} seconds`,
       });
     } else if (phase === 'rest') {
+      console.log('Transitioning from rest to work');
       if (currentRound < settings.rounds) {
         setCurrentRound(prev => prev + 1);
         setPhase('work');
@@ -109,6 +113,7 @@ export const IntervalTimer = () => {
         if (exercises.length > 0) {
           nextExerciseIndex = (currentExerciseIndex + 1) % exercises.length;
           setCurrentExerciseIndex(nextExerciseIndex);
+          console.log('Next exercise index:', nextExerciseIndex, 'Exercise:', exercises[nextExerciseIndex]);
         }
         
         playBeep(800, 300);
@@ -124,6 +129,7 @@ export const IntervalTimer = () => {
           description: `Round ${currentRound + 1}${nextExercise ? ` - ${nextExercise}` : ` - Work for ${settings.workDuration} seconds`}`,
         });
       } else {
+        console.log('Workout complete');
         setPhase('finished');
         setState('idle');
         playBeep(1000, 500);
@@ -141,6 +147,7 @@ export const IntervalTimer = () => {
     if (state === 'running') {
       intervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
+          console.log('Timer tick:', { prev, phase, state });
           if (prev <= 1) {
             transitionPhase();
             return 0;
