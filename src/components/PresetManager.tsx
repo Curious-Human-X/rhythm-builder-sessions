@@ -22,8 +22,14 @@ const DEFAULT_PRESETS: TimerPreset[] = [
   { name: 'Tabata Classic', workDuration: 20, restDuration: 10, rounds: 8, exercises: ['High Knees', 'Mountain Climbers', 'Plank', 'Lunges'] },
   { name: 'Strength Training', workDuration: 45, restDuration: 15, rounds: 6, exercises: ['Deadlifts', 'Bench Press', 'Squats', 'Pull-ups', 'Rows', 'Overhead Press'] },
   { name: 'Cardio Burst', workDuration: 30, restDuration: 15, rounds: 12, exercises: ['Jump Rope', 'Running in Place', 'Jumping Jacks', 'High Knees'] },
-  { name: 'Beginner Friendly', workDuration: 30, restDuration: 30, rounds: 5, exercises: ['Walking in Place', 'Arm Circles', 'Bodyweight Squats', 'Wall Push-ups', 'Stretching'] }
+  {
+    name: 'Beginner Friendly', workDuration: 30, restDuration: 1, rounds: 18,
+    exercises: ['Neck Circle', 'Shoulder Rotation', 'Arm Circle', 'Arm Circles Opposite Direction', 'Elbow Circles', 'Wrist Rotation',
+      'Hip Rotation', 'Body Circle', 'Inner Thigh and Oblique', 'Lower Back and Hamstring', 'Lunge Tap', 'Side Static Lunge', 'Front Static Lunge',
+      'Squat Cross Arm', 'Standing Crunch', 'Butterflies', 'Jumping Jacks'
+    ]}
 ];
+
 
 export const PresetManager = ({ currentSettings, currentExercises, onLoadPreset, disabled }: PresetManagerProps) => {
   const { toast } = useToast();
